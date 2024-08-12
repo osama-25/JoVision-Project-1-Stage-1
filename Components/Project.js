@@ -36,7 +36,9 @@ const Project = () => {
                 <Tab.Screen name='Camera' component={Camera} options={{headerShown: false}}/>
                 <Tab.Screen name='Sensor' component={Sensor} />
                 <Tab.Screen name='Gallery' component={Gallery} />
-                <Tab.Screen name='SlideShow' component={SlideShow} />
+                <Tab.Screen name='SlideShow' component={SlideShow} 
+                    options={{tabBarButton: () => null, tabBarVisible: false,}} 
+                />
             </Tab.Navigator>
         </NavigationContainer>
     );

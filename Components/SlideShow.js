@@ -1,107 +1,105 @@
-import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Button, PermissionsAndroid, Alert, Pressable, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, Button, Alert, Pressable, Animated } from 'react-native';
+import RNFS from 'react-native-fs';
+import Video from 'react-native-video';
+import CustomVideoPlayer from './CustomVideoPlayer';
 
-const Slideshow = () => {
-    const [imageData, setImageData] = useState([]);
+const SlideShow = ({ route }) => {
+    const { media, index } = route.params;
+    const [mediaData, setMediaData] = useState([]);
     const [isPlaying, setIsPlaying] = useState(true);
     const flatListRef = useRef(null);
-    const currentIndex = useRef(0);
-    const [scaleValue] = useState(new Animated.Value(1));
+    const currentIndex = useRef(index);
+    const [scaleValuePrev] = useState(new Animated.Value(1));
+    const [scaleValueNext] = useState(new Animated.Value(1));
 
-    const animateButton = () => {
-        Animated.timing(scaleValue, {
+    const animateButton = (value) => {
+        Animated.timing(value, {
             toValue: 0.7,
             duration: 100,
             useNativeDriver: true,
         }).start(() => {
-            Animated.timing(scaleValue, {
+            Animated.timing(value, {
                 toValue: 1,
-                duration: 100,
+                duration: 50,
                 useNativeDriver: true,
             }).start();
         });
     };
 
-    const requestPermissions = async () => {
-        try {
-            const granted = await PermissionsAndroid.request(
-                PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-                {
-                    title: 'Read External Storage Permission',
-                    message: 'This app needs access to your photos.',
-                    buttonNegative: 'Cancel',
-                    buttonPositive: 'OK',
-                }
-            );
-            return granted === PermissionsAndroid.RESULTS.GRANTED;
-        } catch (err) {
-            console.warn(err);
-            return false;
-        }
-    };
-
     const fetchPhotos = async () => {
-        const hasPermission = await requestPermissions();
-        if (!hasPermission) {
-            Alert.alert('Permission Denied', 'Storage permission is required to access photos.');
-            return;
-        }
-
-        CameraRoll.getPhotos({
-            first: 50, // Number of photos to load
-            groupName: 'react',
-            assetType: 'Photos',
-        })
-            .then(r => {
-                const images = r.edges.map(edge => ({
-                    id: edge.node.image.uri,
-                    source: edge.node.image.uri,
-                }));
-                setImageData(images);
-            })
-            .catch(err => {
-                console.error('Error loading images:', err);
-            });
+        const files = await RNFS.readDir(RNFS.ExternalCachesDirectoryPath);
+        const mediaFiles = files.map(file => ({
+            id: file.name,
+            name: file.name,
+            source: file.path,
+            type: file.name.endsWith('.jpg') ? 'photo' : 'video'
+        }));
+        setMediaData(mediaFiles);
     };
 
     useEffect(() => {
         fetchPhotos();
+        setTimeout(() => {
+            if (index != null && flatListRef.current) {
+                flatListRef.current.scrollToIndex({ index: index });
+            }
+        }, 500);
     }, []);
 
-    useEffect(() => {
-        if (isPlaying && imageData.length > 0) {
-            const interval = setInterval(() => {
-                currentIndex.current = (currentIndex.current + 1) % imageData.length;
-                flatListRef.current.scrollToIndex({ index: currentIndex.current, animated: true });
-            }, 1000);
-
-            return () => clearInterval(interval);
+    const renderMedia = ({ item }) => {
+        if (item.type == 'video') {
+            return (
+                <CustomVideoPlayer source={item.source} />
+            );
+        } else {
+            return (
+                <Image
+                    source={{ uri: 'file://' + item.source }}
+                    style={styles.media}
+                />
+            );
         }
-    }, [isPlaying, imageData]);
-
-    const togglePlayPause = () => {
-        animateButton();
-        setIsPlaying(!isPlaying);
     };
+
+    const prevMedia = () => {
+        animateButton(scaleValuePrev);
+        setTimeout(() => {
+            currentIndex.current = (currentIndex.current - 1) % mediaData.length;
+            flatListRef.current.scrollToIndex({ index: currentIndex.current, animated: true });
+        }, 200);
+    }
+
+    const nextMedia = () => {
+        animateButton(scaleValueNext);
+        setTimeout(() => {
+            currentIndex.current = (currentIndex.current + 1) % mediaData.length;
+            flatListRef.current.scrollToIndex({ index: currentIndex.current, animated: true });
+        }, 200);
+    }
 
     return (
         <View style={styles.container}>
             <FlatList
                 ref={flatListRef}
-                data={imageData}
+                data={mediaData}
                 horizontal
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                    <Image source={{ uri: item.source }} style={styles.image} />
-                )}
+                renderItem={renderMedia}
                 scrollEnabled={false} // Disable manual scrolling
             />
-            <Pressable onPress={togglePlayPause}>
-                <Animated.View style={[styles.button, { transform: [{ scale: scaleValue }] }]}>
-                    <Text style={styles.text}>{isPlaying ? 'Pause' : 'Resume'}</Text>
-                </Animated.View>
-            </Pressable>
+            <View style={styles.buttoncontainer}>
+                <Pressable onPress={prevMedia}>
+                    <Animated.View style={[styles.button, { transform: [{ scale: scaleValuePrev }] }]}>
+                        <Text style={styles.text}>Previous</Text>
+                    </Animated.View>
+                </Pressable>
+                <Pressable onPress={nextMedia}>
+                    <Animated.View style={[styles.button, { transform: [{ scale: scaleValueNext }] }]}>
+                        <Text style={styles.text}>Next</Text>
+                    </Animated.View>
+                </Pressable>
+            </View>
         </View>
     );
 };
@@ -119,10 +117,9 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         color: 'black',
     },
-    image: {
-        width: 300,
-        height: 400,
-        margin: 5,
+    media: {
+        width: 370,
+        height: 500,
     },
     button: {
         width: 100,
@@ -133,12 +130,27 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
     text: {
         fontSize: 20,
         color: 'black',
         fontWeight: 'bold',
     },
+    buttoncontainer: {
+        position: 'absolute',
+        bottom: 40,
+        alignSelf: 'center',
+        alignItems: 'center',
+        borderColor: 'black',
+        justifyContent: 'space-evenly',
+        width: '100%',
+        flexDirection: 'row',
+    },
 });
 
-export default Slideshow;
+export default SlideShow;

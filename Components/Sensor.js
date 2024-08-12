@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Alert, PermissionsAndroid } from 'react-native';
+import { View, Text, StyleSheet, Alert, PermissionsAndroid, Image, ScrollView } from 'react-native';
 import GeoLocation from 'react-native-geolocation-service';
 import { accelerometer, setUpdateIntervalForType, SensorTypes } from 'react-native-sensors';
 
 const LOCATION_UPDATE_INTERVAL = 10000;
 const ORIENTATION_UPDATE_INTERVAL = 500;
+const SPEED_X = 10;
+const SPEED_Y = 3;
 
 const requestPermissions = async () => {
     try {
@@ -31,7 +33,6 @@ const Sensor = () => {
         altitude: null,
         speed: null,
     });
-
     const [orientation, setOrientation] = useState({
         x: 0,
         y: 0,
@@ -52,14 +53,14 @@ const Sensor = () => {
                 setLocation({ latitude, longitude, altitude, speed });
             },
             (error) => Alert.alert('GetCurrentPosition Error', JSON.stringify(error)),
-            { enableHighAccuracy: true, distanceFilter: 1, timeout: 15000, maximumAge: 10000 }
+            { enableHighAccuracy: true }
         );
     }, []);
 
     useEffect(() => {
-        getCurrentPosition(); // Get initial location
+        getCurrentPosition();
         const locationIntervalId = setInterval(getCurrentPosition, LOCATION_UPDATE_INTERVAL);
-        return () => clearInterval(locationIntervalId); // Cleanup interval on component unmount
+        return () => clearInterval(locationIntervalId);
     }, [getCurrentPosition]);
 
     useEffect(() => {
@@ -69,20 +70,37 @@ const Sensor = () => {
             setOrientation({ x, y, z });
         });
 
-        return () => subscription.unsubscribe(); // Cleanup subscription on component unmount
+        return () => subscription.unsubscribe();
     }, []);
+
+    const renderSpeedImage = () => {
+        if (location.speed !== null) {
+            if (location.speed > SPEED_X) {
+                return <Image source={require('../assets/car.jpg')} style={styles.image} />;
+            } else if (location.speed > SPEED_Y) {
+                return <Image source={require('../assets/walking.jpg')} style={styles.image} />;
+            } else {
+                return <Image source={require('../assets/sitting.jpg')} style={styles.image} />;
+            }
+        }
+        return null;
+    };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Current Location</Text>
-            <Text style={styles.text}>Latitude: {location.latitude !== null ? location.latitude.toFixed(6) : 'N/A'}</Text>
-            <Text style={styles.text}>Longitude: {location.longitude !== null ? location.longitude.toFixed(6) : 'N/A'}</Text>
-            <Text style={styles.text}>Altitude: {location.altitude !== null ? location.altitude.toFixed(2) : 'N/A'}</Text>
-            <Text style={styles.text}>Speed: {location.speed !== null ? location.speed.toFixed(2) : 'N/A'}</Text>
-            <Text style={styles.title}>Current Orientation</Text>
-            <Text style={styles.text}>X: {orientation.x.toFixed(2)}</Text>
-            <Text style={styles.text}>Y: {orientation.y.toFixed(2)}</Text>
-            <Text style={styles.text}>Z: {orientation.z.toFixed(2)}</Text>
+            <ScrollView>
+                <Text style={styles.title}>Current Location</Text>
+                <Text style={styles.text}>Latitude: {location.latitude !== null ? location.latitude.toFixed(6) : 'N/A'}</Text>
+                <Text style={styles.text}>Longitude: {location.longitude !== null ? location.longitude.toFixed(6) : 'N/A'}</Text>
+                <Text style={styles.text}>Altitude: {location.altitude !== null ? location.altitude.toFixed(2) : 'N/A'}</Text>
+                <Text style={styles.text}>Speed: {location.speed !== null ? location.speed.toFixed(2) : 'N/A'}</Text>
+                {renderSpeedImage()}
+                <Text style={styles.title}>Current Orientation</Text>
+                <Text style={styles.text}>X: {orientation.x.toFixed(2)}</Text>
+                <Text style={styles.text}>Y: {orientation.y.toFixed(2)}</Text>
+                <Text style={styles.text}>Z: {orientation.z.toFixed(2)}</Text>
+                <Image source={require('../assets/0.jpeg')} style={styles.image}/>
+            </ScrollView>
         </View>
     );
 };
@@ -105,6 +123,10 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         color: 'black',
     },
+    image: {
+        width: 150,
+        height: 150,
+    }
 });
 
 export default Sensor;
